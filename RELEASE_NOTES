@@ -1,0 +1,24 @@
+#
+# $Id: RELEASE_NOTES 146977 2016-06-07 13:29:26Z mzoll $
+#
+# ProjectName: IceHiveZ
+# Maintainer: Marcel Zoll (marcel.zoll@fysik.su.se)
+#
+
+
+160401 mzoll    (marcel.zoll@fysik.su.se)
+------------------------------------------------------
+New Project IceHiveZ:
+- better structure of project folders and files
+- fully broken out Connectors from the CausallyConnect -function
+- EventSplitter is called I3HiveSplitter again
+- more modular library support
+- removed TriggerSplitter from the project
+- Added HiveTrigger, a port of HiveSplitter to issue TriggerWindows
+- Interfaced HiveTrigger to HitSpool-Reader, a project from C. Weaver
+- updated DOCs
+
+
+160101 mzoll    (marcel.zoll@fysik.su.se)
+------------------------------------------------------
+A copy of IceHive

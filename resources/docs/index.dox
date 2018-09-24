@@ -1,0 +1,87 @@
+/**
+\mainpage IceHiveZ
+\author Marcel Zoll
+
+\section overview Overview
+
+This project name IceHiveZ is the lates and final development in IceCube event splitter technology in the series of previous splitters: ttrigger > TopologicalSplitter > MaxDist > HiveSplitter > IceHive > IceHiveZ.
+Compared to the previous implementation IceHive it is completely rewritten  with only the algorithmic implementation of HiveSplitter staying intact, even tough many internal parameters have now been broken out and been exposed. The code is now structured more clearly and objectivied to a very deep level, providing a high degree of modularity. The Look-up tables have been redesigned for a faster and smoother access and are serializable, in order to save time on the configuration-stage at run-time.
+
+The project ships with core implementations in C++ and a python front-end for almost all internal objects and libraries. Many of the functionality in the libraries address general problems working with hit objects and are of general use also for other projects.
+
+In the interest of keeping the software consistent for processing, changes that are made on this project should be checked against CoincidentSuite (CoincSuite), another I3Module intended to run after the modules contained in this project in the std-processing.
+
+\subsection libtemplate templated Libraries
+All libraries in IceHive have been written in the hindsight of portability to other foreign code or projects, which also includes the massive use of templates. For most purposes there are high-level services and facilities provided, which facilitate most functionality. These should be used first hand and direct access on base-object should be avoided as much as possible.
+
+
+\section trigger Running the algorithm as a trigger
+The algorithm of HiveSplitter can also be used just to identify clusters of hits in the detector (see also the HiveCluster-module). This fact can be used to run the HiveSplitter algorithm to identify occurrences of clustering hits in the detector, a dead give-away for physics being present.<BR>
+The algorithm is currently not explicitly supporting asynchronous operation on a stream of hits, but can easily adapted to do so. This is due to the fact that the internals of HiveSplitter are <i>independent</i> of the exact shape of the outside object that a <i>Hit</i>, the internal representation, actually represents. Also the algorithm is <i>linear</i>, thus the algorithm is working off hits in a stack-like fashion.<BR>
+
+\section algorithm Algorithm
+This section aims to summarize the process-flow of the HiveSplitter algorithm. It is a low-level description of the algorithm driving the HiveSplitter, which is used to find clusters of pulses in the IceCube detector, which then later can be identified to individual subevents. Please note: this text does not try to relate used techniques and idioms to the physics in the detector; this can be found in the formal documentation of the project. 
+
+
+\subsection implementation Implementation
+The IceHiveZ project is parted up into the following sub-groups of code it contains:
+* <b> Internals </b> are functional classes which are used internally within the algorithms and modules of the IceHiveZ project. Almost all objects are serializable by default. No dependency on I3Objects.
+* <b> Algorithms </b> implement are the driving physics concepts behind the IceHiveZ proejcts, namely HiveSplitter and HiveTrigger. These are low-level algorithms based on general hits and are independent of I3Objects
+* <b> Modules </b> implement high-level functionality and the interaction with icetray, other I3Modules and the run environment in general. The contained Modules explicitly implement a transport-layer translating I3ResponseObjects to general hits which are then processed by an algorithm and the result is interpreted.
+
+\subsection processingflow General processing flow
+The Execution of a high-level module is handled in four steps:
+* <b>Initialization</b>: where the module gets set up and preconfigured; note that not all fields are initialized because some information, for example geometry information, is still missing.
+* <b>Configuration</b>: where with information from the GCD-frames preconfigured information is converted into fully initialized look-up tables, all objects and internal links are set-up
+* <b>Execution</b>: where a block of to process information is handed to the module for example in the form of a I3Frame. The necessary I3Objects are read and internally converted, the splitter algorithm is run, and the output is written back to the frame as I3Objects.
+* <b>Termination</b>: where the run-time of the module ends. Internal occupied memory is freed and a summary about runtime-statistics written to the screen.
+
+Observe that the names of these steps are not identical with the function names used in IceTray.
+
+
+\subsection Hashing Hashing Concept
+In order to understand the internal objects used in the algorithms it is important to understand the OMKeyHashing procedure, a central part of the whole IceHiveZ project.
+
+In the creation of lookup-tables and efficiency of their storage and access it is instructive to have an indexing over keys that is injective, complete and that elements are possibly consecutively defined.
+A hit needs to store two data-fields to be fully defined: the hit time and the hit OMKey. However, the OMKey is a complex object obeying some hidden rules about its internal indexes. OMKeys are therefore explicitly not consecutive or complete. However, on a limited set of OMKeys we can assign each OMKey an integer value and so implement a hashing prescription that fulfills the above requirements.
+IceHiveZ implements this by the OMKeyHashing facility, which takes a vector of OMKeys or the list of OMKeys in a I3Geometry, to define this mapping and provide fast functions for forth and back conversion between hash-value and OMKey.
+
+As this hash-value is algorithm internal universal the hash value may be hold by different objects at the same time without the risk of confusion. So for example can a Hit hold the hash-value for the OMKey and the same hash-value might represent key for a certain OMKey in a look-up table. The consistency depends on that the same OMKeyHasher is used throughout the internals of the algorithm.
+
+
+\subsection Extracthits Extracting Hits
+For most applications of IceHiveZ I3ResponseObjetcts, like I3RecoPulses must be read from the frame and processed by one of the internal algorithms and the output being written as a proper I3Objects back to the frame on execution time. For this the high-level modules will first convert the I3ResponseSeriesMaps to a time-ordered series of hits, which are light weight objects transporting only the hit time and OMKey hash-value. This is facilitated by the OMKeyMap-HitFacility, which is a template for different I3ResponseObjects, providing the necessary forth and back conversion between these objects. As a general rule, the conversion back from hits to I3ResponseObjects should always be performed by the same OMKeyMap-HitFacitlity that they have been extracted in the first place!
+
+In principle once the hits have been extracted they are independent objects, they can be copied, destroyed used in every permitted way.  However, transporting only the hit time and place (OMkey/Hash-value) sometimes more information from the underlying I3ResponseObject is desired, so for example the Charge of an I3RecoPulse. In order to provide this desired access each hits carries a pointer to it underlying ResponseObject with it. This is implemented as a raw void-pointer, meaning that the HitObject in turn holding the I3ResponseObject from which the hit was originally created  may not be moved in memory. Also the user is responsible to cast to the right templated HitObject-type template for different I3ResponseObject-types. In order to avoid errors of performing these retrievals, it is recommended to use the OMKeyMap-HitFacility also for this functionality, and manual retrieval should only be attempted if absolutly necessary for speed issues.
+Sometimes this information retrieval from the base I3ResponseObject is, however, algorithmically not necessary, transporting this pointer can be omitted and instead of extracting Hits it suffices to extract AbsHits, which only transport essential information only.
+
+
+\subsection HiveSplitter HiveSplitter algorithm
+This should in short discuss the algorithmic processing flow of the HiveSplitter algorithm
+
+
+\subsubsection inittime Initialization time
+The Module is added to the <i>tray</i> by the usual <i>tray.AddModule</i>-routine:<BR>
+
+  from icecube import IceHive
+  tray.AddModule("I3IceHive<I3RecoPulse>", name,
+                  Param1 = value,
+                  Param2 = value
+                  ...)
+
+It is worth to mention that the high-level Module <i>I3IceHive</i> is templated, so that <i>I3RecoPulse</i> can be substituted by any other I3Pulse/Hit object found in the frame as an <i>OMKeyMapMask</i>.<BR>
+The parameters and their function are described in the projects documentation.<BR>
+
+Adding the module to the tray, calls the Constructor <i>I3IceHive()</i> of the high-level I3Module. All user-definable options are at this time initialized with default-values. Also a pointer to the HiveSplitter is initialized; however, the pointer remains unset, as there is not enough information to set it up, yet.<BR>
+
+Once the tray has successfully set up all added modules and services, it will call the <i>I3IceHive.Configure()</i> methode. Here the user-defined parameter values are passed to the high-level I3Module. The ones relevant to the splitter algorithm are wrapped in an object <i>HiveSplitter_Parameters</i>. With this set of parameters the splitter is initialized and the previously mentioned pointer is set.<BR>
+
+At this initialization all parameter values of the splitter will be set, however, look-up tables will still remain initialized, because the remaining ingredient, geometry information, is still missing.
+
+\subsubsection writeout Writing of Output
+With the list of SubEvents and the hits that belong to them, the I3IceHive-module creates for every SubEvent a new (sub) P-frame.
+By construction every such subevent-frame is required to have an I3EventHeader present with an incremental subevent-ID. This and the RecoPulseSeriesMap(Mask) of the SubEvent are written to the frame.<BR>
+
+In principle this does conclude the job of an icetray-EventSplitter. Still more convenience objects are written to the frame, which are helpful for further analysis and processing purposes. For example all hits which are attributed to noise are mixed into the subEvent to provide a PulseSeries which has all noise-pulses present <b>minus</b> any pulses from any other subEvent happening at the same time.
+Also a modified I3TriggerHierarchy is written to the frame, adapted to the time-extension of that SubEvent. Optional it is augmented with a new trigger-key reflecting the IceHive algorithm.<BR>
+*/
